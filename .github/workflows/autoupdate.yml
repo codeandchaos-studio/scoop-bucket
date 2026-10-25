@@ -1,0 +1,91 @@
+name: Auto Update Manifests
+
+on:
+  schedule:
+    # Check for new releases every 30 minutes
+    - cron: '*/30 * * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions UI
+
+permissions:
+  contents: write
+
+jobs:
+  update-ddeck:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Check D-Deck Releases and Update Manifest
+        shell: powershell
+        run: |
+          $repo = "codeandchaos-studio/D-Deck"
+          Write-Host "Checking latest release for $repo..."
+          $headers = @{ "Accept" = "application/vnd.github.v3+json" }
+          
+          try {
+            $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/latest" -Headers $headers
+          } catch {
+            Write-Error "Failed to fetch releases: $_"
+            exit 0
+          }
+
+          if (-not $release -or -not $release.tag_name) {
+            Write-Host "No release found."
+            exit 0
+          }
+
+          $version = $release.tag_name.TrimStart('v')
+          $manifestPath = "bucket/ddeck.json"
+          
+          if (-not (Test-Path $manifestPath)) {
+            Write-Error "Manifest not found: $manifestPath"
+            exit 1
+          }
+
+          $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
+          Write-Host "Latest GitHub release: $version"
+          Write-Host "Current manifest version: $($manifest.version)"
+
+          if ($manifest.version -ne $version) {
+            Write-Host "New version detected ($version). Updating manifest..."
+            $asset = $release.assets | Where-Object { $_.name -like "*Portable*.exe" } | Select-Object -First 1
+            
+            if (-not $asset) {
+              Write-Error "Portable executable asset not found in release."
+              exit 1
+            }
+
+            $tempFile = "temp-$($asset.name)"
+            Write-Host "Downloading $($asset.name) to compute SHA256..."
+            Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tempFile
+            
+            $hash = (Get-FileHash -Path $tempFile -Algorithm SHA256).Hash.ToLower()
+            Remove-Item $tempFile -Force
+            Write-Host "Computed SHA256: $hash"
+
+            $manifest.version = $version
+            $manifest.url = "https://github.com/$repo/releases/download/v$version/$($asset.name)#/D-Deck.exe"
+            $manifest.hash = $hash
+
+            $manifest | ConvertTo-Json -Depth 4 | Set-Content $manifestPath -Encoding utf8
+            Write-Host "Manifest updated successfully."
+
+            # Output changed flag for git commit step
+            echo "UPDATED=true" >> $env:GITHUB_ENV
+          } else {
+            Write-Host "Manifest is already up to date with version $version."
+            echo "UPDATED=false" >> $env:GITHUB_ENV
+          }
+
+      - name: Commit and Push Changes
+        if: env.UPDATED == 'true'
+        shell: bash
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bucket/ddeck.json
+          git commit -m "Auto-update ddeck manifest to latest release"
+          git push origin main

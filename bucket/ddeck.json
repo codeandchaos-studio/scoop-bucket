@@ -1,19 +1,19 @@
-{
-  "version": "2.1.1",
-  "description": "Distraction-free desktop task HUD and sprint timer for Windows",
-  "homepage": "https://codeandchaos-studio.pages.dev",
-  "license": "Freeware",
-  "url": "https://github.com/codeandchaos-studio/D-Deck/releases/download/v2.1.1/D-Deck-Portable-2.1.1.exe#/D-Deck.exe",
-  "hash": "bc9e94bd3210c586362028ddc897c4b11bcfcb3b840d39cf63bd23a02cbda372",
-  "bin": "D-Deck.exe",
-  "shortcuts": [
-    [
-      "D-Deck.exe",
-      "D-Deck"
-    ]
-  ],
-  "checkver": "github",
-  "autoupdate": {
-    "url": "https://github.com/codeandchaos-studio/D-Deck/releases/download/v$version/D-Deck-Portable-$version.exe#/D-Deck.exe"
-  }
+﻿{
+    "version":  "2.2.0",
+    "description":  "Distraction-free desktop task HUD and sprint timer for Windows",
+    "homepage":  "https://codeandchaos-studio.pages.dev",
+    "license":  "Freeware",
+    "url":  "https://github.com/codeandchaos-studio/D-Deck/releases/download/v2.2.0/D-Deck-Portable-2.2.0.exe#/D-Deck.exe",
+    "hash":  "c1d26b71c1fa0e532c5591ceee4785972c655f44ba56735c9ca3773cc8e8036f",
+    "bin":  "D-Deck.exe",
+    "shortcuts":  [
+                      [
+                          "D-Deck.exe",
+                          "D-Deck"
+                      ]
+                  ],
+    "checkver":  "github",
+    "autoupdate":  {
+                       "url":  "https://github.com/codeandchaos-studio/D-Deck/releases/download/v$version/D-Deck-Portable-$version.exe#/D-Deck.exe"
+                   }
 }

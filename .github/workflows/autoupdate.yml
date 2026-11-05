@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 jobs:
-  update-ddeck:
+  update-manifests:
     runs-on: windows-latest
     steps:
       - name: Check out repository
@@ -18,65 +18,86 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Check D-Deck Releases and Update Manifest
+      - name: Check Releases and Update Manifests
         shell: powershell
         run: |
-          $repo = "codeandchaos-studio/D-Deck"
-          Write-Host "Checking latest release for $repo..."
+          $projects = @(
+            @{
+              Repo = "codeandchaos-studio/D-Deck"
+              ManifestPath = "bucket/ddeck.json"
+              BinName = "D-Deck.exe"
+            },
+            @{
+              Repo = "codeandchaos-studio/Format-Relay"
+              ManifestPath = "bucket/formatrelay.json"
+              BinName = "FormatRelay.exe"
+            }
+          )
+
+          $anyUpdated = $false
           $headers = @{ "Accept" = "application/vnd.github.v3+json" }
-          
-          try {
-            $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/latest" -Headers $headers
-          } catch {
-            Write-Error "Failed to fetch releases: $_"
-            exit 0
-          }
 
-          if (-not $release -or -not $release.tag_name) {
-            Write-Host "No release found."
-            exit 0
-          }
+          foreach ($proj in $projects) {
+            $repo = $proj.Repo
+            $manifestPath = $proj.ManifestPath
+            $binName = $proj.BinName
 
-          $version = $release.tag_name.TrimStart('v')
-          $manifestPath = "bucket/ddeck.json"
-          
-          if (-not (Test-Path $manifestPath)) {
-            Write-Error "Manifest not found: $manifestPath"
-            exit 1
-          }
-
-          $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
-          Write-Host "Latest GitHub release: $version"
-          Write-Host "Current manifest version: $($manifest.version)"
-
-          if ($manifest.version -ne $version) {
-            Write-Host "New version detected ($version). Updating manifest..."
-            $asset = $release.assets | Where-Object { $_.name -like "*Portable*.exe" } | Select-Object -First 1
-            
-            if (-not $asset) {
-              Write-Error "Portable executable asset not found in release."
-              exit 1
+            Write-Host "Checking latest release for $repo..."
+            try {
+              $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/latest" -Headers $headers
+            } catch {
+              Write-Warning "Failed to fetch releases for $repo: $_"
+              continue
             }
 
-            $tempFile = "temp-$($asset.name)"
-            Write-Host "Downloading $($asset.name) to compute SHA256..."
-            Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tempFile
-            
-            $hash = (Get-FileHash -Path $tempFile -Algorithm SHA256).Hash.ToLower()
-            Remove-Item $tempFile -Force
-            Write-Host "Computed SHA256: $hash"
+            if (-not $release -or -not $release.tag_name) {
+              Write-Host "No release found for $repo."
+              continue
+            }
 
-            $manifest.version = $version
-            $manifest.url = "https://github.com/$repo/releases/download/v$version/$($asset.name)#/D-Deck.exe"
-            $manifest.hash = $hash
+            $version = $release.tag_name.TrimStart('v')
 
-            $manifest | ConvertTo-Json -Depth 4 | Set-Content $manifestPath -Encoding utf8
-            Write-Host "Manifest updated successfully."
+            if (-not (Test-Path $manifestPath)) {
+              Write-Warning "Manifest not found: $manifestPath"
+              continue
+            }
 
-            # Output changed flag for git commit step
+            $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
+            Write-Host "Latest GitHub release ($repo): $version"
+            Write-Host "Current manifest version: $($manifest.version)"
+
+            if ($manifest.version -ne $version) {
+              Write-Host "New version detected ($version). Updating $manifestPath..."
+              $asset = $release.assets | Where-Object { $_.name -like "*Portable*.exe" } | Select-Object -First 1
+
+              if (-not $asset) {
+                Write-Warning "Portable executable asset not found in release for $repo."
+                continue
+              }
+
+              $tempFile = "temp-$($asset.name)"
+              Write-Host "Downloading $($asset.name) to compute SHA256..."
+              Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tempFile
+
+              $hash = (Get-FileHash -Path $tempFile -Algorithm SHA256).Hash.ToLower()
+              Remove-Item $tempFile -Force
+              Write-Host "Computed SHA256: $hash"
+
+              $manifest.version = $version
+              $manifest.url = "https://github.com/$repo/releases/download/v$version/$($asset.name)#/$binName"
+              $manifest.hash = $hash
+
+              $manifest | ConvertTo-Json -Depth 4 | Set-Content $manifestPath -Encoding utf8
+              Write-Host "Manifest $manifestPath updated successfully."
+              $anyUpdated = $true
+            } else {
+              Write-Host "Manifest $manifestPath is already up to date with version $version."
+            }
+          }
+
+          if ($anyUpdated) {
             echo "UPDATED=true" >> $env:GITHUB_ENV
           } else {
-            Write-Host "Manifest is already up to date with version $version."
             echo "UPDATED=false" >> $env:GITHUB_ENV
           }
 
@@ -86,6 +107,6 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add bucket/ddeck.json
-          git commit -m "Auto-update ddeck manifest to latest release"
+          git add bucket/*.json
+          git commit -m "Auto-update scoop manifests to latest releases"
           git push origin main

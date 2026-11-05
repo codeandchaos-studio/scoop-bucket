@@ -1,0 +1,19 @@
+{
+  "version": "1.0.0",
+  "description": "Tactical local-first file conversion suite for Windows",
+  "homepage": "https://codeandchaos-studio.pages.dev",
+  "license": "Freeware",
+  "url": "https://github.com/codeandchaos-studio/Format-Relay/releases/download/v1.0.0/FORMAT_RELAY_Portable.exe#/FormatRelay.exe",
+  "hash": "eadad90fa5dc10429830997d70d4683927f88d584b9e87a59e958c50e69e7ae1",
+  "bin": "FormatRelay.exe",
+  "shortcuts": [
+    [
+      "FormatRelay.exe",
+      "Format Relay"
+    ]
+  ],
+  "checkver": "github",
+  "autoupdate": {
+    "url": "https://github.com/codeandchaos-studio/Format-Relay/releases/download/v$version/FORMAT_RELAY_Portable.exe#/FormatRelay.exe"
+  }
+}

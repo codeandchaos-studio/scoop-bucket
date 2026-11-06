@@ -1,10 +1,10 @@
 ﻿{
-    "version":  "2.3.1",
+    "version":  "2.3.2",
     "description":  "Distraction-free desktop task HUD and sprint timer for Windows",
     "homepage":  "https://codeandchaos-studio.pages.dev",
     "license":  "Freeware",
-    "url":  "https://github.com/codeandchaos-studio/D-Deck/releases/download/v2.3.1/D-Deck-Portable-2.3.1.exe#/D-Deck.exe",
-    "hash":  "f4dedf429335fa0e2f385b7aa5fef0ca43d70bd1402f19c8b041842cc006127d",
+    "url":  "https://github.com/codeandchaos-studio/D-Deck/releases/download/v2.3.2/D-Deck-Portable-2.3.2.exe#/D-Deck.exe",
+    "hash":  "3af2d4247457a6c8ced01f06952dc2a9bd8a773433d7e67f7fb147b2478d50bb",
     "bin":  "D-Deck.exe",
     "shortcuts":  [
                       [

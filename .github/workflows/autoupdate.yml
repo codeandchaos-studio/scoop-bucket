@@ -20,7 +20,11 @@ jobs:
 
       - name: Check Releases and Update Manifests
         shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          $ProgressPreference = 'SilentlyContinue'
+
           $projects = @(
             @{
               Repo = "codeandchaos-studio/D-Deck"
@@ -35,7 +39,13 @@ jobs:
           )
 
           $anyUpdated = $false
-          $headers = @{ "Accept" = "application/vnd.github.v3+json" }
+          $headers = @{
+            "Accept" = "application/vnd.github.v3+json"
+            "User-Agent" = "CodeAndChaos-ScoopAutoUpdate"
+          }
+          if ($env:GITHUB_TOKEN) {
+            $headers["Authorization"] = "Bearer $env:GITHUB_TOKEN"
+          }
 
           foreach ($proj in $projects) {
             $repo = $proj.Repo
@@ -46,7 +56,7 @@ jobs:
             try {
               $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/latest" -Headers $headers
             } catch {
-              Write-Warning "Failed to fetch releases for $repo: $_"
+              Write-Warning "Failed to fetch releases for ${repo}: $_"
               continue
             }
 
@@ -75,20 +85,25 @@ jobs:
                 continue
               }
 
-              $tempFile = "temp-$($asset.name)"
-              Write-Host "Downloading $($asset.name) to compute SHA256..."
-              Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tempFile
-
-              $hash = (Get-FileHash -Path $tempFile -Algorithm SHA256).Hash.ToLower()
-              Remove-Item $tempFile -Force
-              Write-Host "Computed SHA256: $hash"
+              $hash = ""
+              if ($asset.digest -and $asset.digest.StartsWith("sha256:")) {
+                $hash = $asset.digest.Substring(7).ToLower()
+                Write-Host "Extracted SHA256 from asset digest: $hash"
+              } else {
+                $tempFile = "temp-$($asset.name)"
+                Write-Host "Downloading $($asset.name) to compute SHA256..."
+                Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tempFile
+                $hash = (Get-FileHash -Path $tempFile -Algorithm SHA256).Hash.ToLower()
+                Remove-Item $tempFile -Force
+                Write-Host "Computed SHA256: $hash"
+              }
 
               $manifest.version = $version
               $manifest.url = "https://github.com/$repo/releases/download/v$version/$($asset.name)#/$binName"
               $manifest.hash = $hash
 
               $manifest | ConvertTo-Json -Depth 4 | Set-Content $manifestPath -Encoding utf8
-              Write-Host "Manifest $manifestPath updated successfully."
+              Write-Host "Manifest $manifestPath updated successfully to version $version."
               $anyUpdated = $true
             } else {
               Write-Host "Manifest $manifestPath is already up to date with version $version."
@@ -96,9 +111,9 @@ jobs:
           }
 
           if ($anyUpdated) {
-            echo "UPDATED=true" >> $env:GITHUB_ENV
+            Add-Content -Path $env:GITHUB_ENV -Value "UPDATED=true" -Encoding utf8
           } else {
-            echo "UPDATED=false" >> $env:GITHUB_ENV
+            Add-Content -Path $env:GITHUB_ENV -Value "UPDATED=false" -Encoding utf8
           }
 
       - name: Commit and Push Changes
@@ -108,5 +123,9 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add bucket/*.json
-          git commit -m "Auto-update scoop manifests to latest releases"
-          git push origin main
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Auto-update scoop manifests to latest releases"
+            git push origin main
+          fi
